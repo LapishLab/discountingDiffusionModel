@@ -1,15 +1,20 @@
-function [chSel,respLat,trkiBound,trkAccumVal]=ddDiffusionModel(steps, searches, diffusion, nRep, delayTime, plotData, kValue, scaleDriftBias,scaleOriginBias)
-%% Global Variables for running as script
+function [chSel,respLat,trkiBound,trkAccumVal]=ddDiffusionModel(steps, diffusion, nRep, delayTime, plotData, kValue, scaleDriftBias,scaleOriginBias)
+%% Output variables 
+% chSel                             % Boundary found on each trial
+% respLat                           % Latency to find boundary 
+% trkiBound                         % Gives the value of the immediate/trial
+% trkAccumVal                       % Tracks the number of consecutive boundaries found
+
+%% Input variables (values from Linsenbardt et al., 2016)
 % clear all
-% steps=5000;
-% searches=1;
-% diffusion=0.04; % get 1 omit w/ 0.025 at 0 sec, ~20 omits at 16 sec diff=0.05 with scaleDriftBias=0 or 0.5.
-% nRep=100;
-% delayTime=4;
-% plotData=1;
-% kValue=0.3009;
-% scaleOriginBias=0; %0.25; 
-% scaleDriftBias=0;
+% nRep=500;                           % Number of r(trials) 
+% steps=5000;                         % Number of steps in the diffusion model
+% diffusion=0.04;                     % Minimizes omits for 5000 steps
+% delayTime=0;                        % Time of the delayed 'reward'(boundary)
+% plotData=1;                         % Would you like to plot the data
+% kValue=0.3009;                      % k-value to construct boundaries 
+% scaleOriginBias=0;                  % Origin bias (see Linsenbardt et al., 2016)
+% scaleDriftBias=0;                   % Scale bias (see Linsenbardt et al., 2016)
 
 %% Setting boundaries by v=A/1+(kD), where boundary = 1/v
 % setting immediate boundary vector
@@ -36,7 +41,6 @@ originBias=scaleOriginBias.*(y./max(y));
 originBias(1)=0;  % there should be no update on first seclection
 originBiasCt=1;
 
-
 %% setting accumlators to 1
 delAccum=1;
 immAccum=1;
@@ -44,7 +48,7 @@ immAccum=1;
 %% Loop on number of trials (nRep) 
 for XX=1:nRep;
     %% detect what the last choice was, and update accumulators: 
-    %% this provides index to select weight vector from
+    % % this provides index to select weight vector from
     if XX ~=1; % Skip first trial, use default
         if chSel(XX-1)==-1;
             delAccum=delAccum+1;
@@ -72,29 +76,26 @@ for XX=1:nRep;
     trkDelAccum(XX)=delAccum;   
     
     %%  Random Walk
-    A=cell(searches,1);
     stepsM=steps+1;
-    for k=1:searches;
-        A{k,1}=nan(1,stepsM);
-        if XX~=1;
-            if accumVal>0 % found immediate
-                A{k,1}(:,1)=originBias(accumVal)*iBound(iValCt); % biases orgin towards iBound (immediate)
-            end;
-            if accumVal<0 % found delayed 
-                A{k,1}(:,1)=originBias(abs(accumVal))*dBound; % biases orgin towards dBound (delay)
-            end;
+    A=nan(1,stepsM);
+    if XX~=1;
+        if accumVal>0 % found immediate
+            A(:,1)=originBias(accumVal)*iBound(iValCt); % biases orgin towards iBound (immediate)
         end;
-        if XX==1; A{k,1}(:,1)=0; end; % start at origin
-        % perform walk
-        for j=2:stepsM;
-            A{k,1}(1,j)=A{k,1}(1,j-1)+diffusion*pearsrnd(walkBias(j-1),1,0,3,1,1);
+        if accumVal<0 % found delayed
+            A(:,1)=originBias(abs(accumVal))*dBound; % biases orgin towards dBound (delay)
         end;
     end;
+    if XX==1; A(:,1)=0; end; % start at origin
+    % perform walk
+    for j=2:stepsM;
+        A(1,j)=A(1,j-1)+diffusion*pearsrnd(walkBias(j-1),1,0,3,1,1);
+    end;
+    
     trkiBound(XX)=iBound(iValCt);
     trkA(XX,:)=A;
 
     %% Did walk find target?
-    A=cell2mat(A);
     walks(XX,:)=A;
     
     iIdx=find(A>=iBound(iValCt),1);
@@ -108,7 +109,7 @@ for XX=1:nRep;
     if iIdx<dIdx; % Immediate found first
         chSel(XX)=1;    
         if iBound(iValCt)~=max(iBound); % increase to max iBound but not higher
-            iValCt=iValCt-1; % Increase location of immediate boundary 
+            iValCt=iValCt-1;            % Increase location of immediate boundary 
         end;
     end;
     
@@ -126,8 +127,7 @@ for XX=1:nRep;
     end;
     
     
-    %%  Extract Responce Latencies
-    % Number of steps taken to find the target.
+    %%  Extract Responce Latencies: Number of steps taken to find the target
     if chSel(XX)==-1;
         respLat(XX)=dIdx;
     end;
@@ -139,7 +139,7 @@ for XX=1:nRep;
     end;
 end;
 
-
+%% Plotting tools
 if plotData==1
     subplot(2,2,1);
     plot(chSel,'ko-');
@@ -171,4 +171,16 @@ if plotData==1
     ylabel('Counts');
 end;
 
-%% 
+%%    (c) 2016 Christopher C. Lapish PhD Indiana University 
+%     This program is free software: you can redistribute it and/or modify
+%     it under the terms of the GNU General Public License as published by
+%     the Free Software Foundation, either version 3 of the License, or
+%     any later version.
+% 
+%     This program is distributed in the hope that it will be useful,
+%     but WITHOUT ANY WARRANTY; without even the implied warranty of
+%     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%     GNU General Public License for more details.
+% 
+%     You should have received a copy of the GNU General Public License
+%     along with this program.  If not, see <http://www.gnu.org/licenses/>.
