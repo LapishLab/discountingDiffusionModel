@@ -1,5 +1,4 @@
 # discountingDiffusionModel
-Lapish Lab Public Code
 
 Code to perfrom the simualtions for the drift diffusion model of decision making presented in:
 
